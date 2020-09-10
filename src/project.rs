@@ -42,12 +42,14 @@ pub enum ModuleOrigin {
 }
 
 impl ModuleOrigin {
+    /*
     pub fn dir_name(&self) -> &'static str {
         match self {
             ModuleOrigin::Src | ModuleOrigin::Dependency => "src",
             ModuleOrigin::Test => "test",
         }
     }
+    */
 
     pub fn to_origin(&self) -> Origin {
         match self {
@@ -195,21 +197,30 @@ pub fn collect_source(
     };
 
     for path in crate::fs::gleam_files(&src_dir) {
-        let src = std::fs::read_to_string(&path).map_err(|err| Error::FileIO {
-            action: FileIOAction::Read,
-            kind: FileKind::File,
-            err: Some(err.to_string()),
-            path: path.clone(),
-        })?;
-
-        srcs.push(Input {
-            path: path
-                .canonicalize()
-                .gleam_expect("project::collect_source(): path canonicalize"),
-            source_base_path: src_dir.clone(),
-            origin: origin.clone(),
-            src,
-        })
+        let src = analyse_one(path, origin.clone(), src_dir.clone())?;
+        srcs.push(src);
     }
     Ok(())
+}
+
+pub fn analyse_one(
+    path: PathBuf,
+    origin: ModuleOrigin,
+    source_base_path: PathBuf,
+) -> Result<Input, Error> {
+    let src = std::fs::read_to_string(&path).map_err(|err| Error::FileIO {
+        action: FileIOAction::Read,
+        kind: FileKind::File,
+        err: Some(err.to_string()),
+        path: path.clone(),
+    })?;
+
+    Ok(Input {
+        path: path
+            .canonicalize()
+            .gleam_expect("project::collect_source(): path canonicalize"),
+        source_base_path,
+        origin,
+        src,
+    })
 }

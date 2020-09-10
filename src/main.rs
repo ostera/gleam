@@ -58,6 +58,15 @@ enum Command {
         project_root: String,
     },
 
+    #[structopt(name = "compile", about = "Compile .gleam files into .erl files")]
+    Compile {
+        #[structopt(help = "files to compile")]
+        files: Vec<String>,
+
+        #[structopt(help = "files to compile", short = "o", long = "output-dir")]
+        output_dir: String,
+    },
+
     #[structopt(name = "docs", about = "Render HTML documentation for a project")]
     Docs(Docs),
 
@@ -153,6 +162,12 @@ fn main() {
     let result = match Command::from_args() {
         Command::Build { project_root } => command_build(project_root),
 
+        Command::Compile { files, output_dir } => {
+            let files = files.iter().map(std::path::PathBuf::from).collect();
+            let output_dir = std::path::PathBuf::from(output_dir);
+            command_compile(files, output_dir)
+        }
+
         Command::Docs(Docs::Build { project_root, to }) => docs::command::build(project_root, to),
 
         Command::Docs(Docs::Publish {
@@ -204,11 +219,45 @@ fn command_build(root: String) -> Result<(), Error> {
     // Read and type check project
     let (_config, analysed) = project::read_and_analyse(&root)?;
 
+    let output_dir = PathBuf::from(project::OUTPUT_DIR_NAME);
+
     // Generate Erlang code
-    let output_files = erl::generate_erlang(analysed.as_slice());
+    let output_files = erl::generate_erlang(output_dir.clone(), analysed.as_slice());
 
     // Reset output directory
-    fs::delete_dir(&root.join(project::OUTPUT_DIR_NAME))?;
+    fs::delete_dir(&output_dir)?;
+
+    // Print warnings
+    warning::print_all(analysed.as_slice());
+
+    // Delete the gen directory before generating the newly compiled files
+    fs::write_outputs(output_files.as_slice())?;
+
+    println!("Done!");
+
+    Ok(())
+}
+
+fn command_compile(files: Vec<PathBuf>, output_dir: PathBuf) -> Result<(), Error> {
+    // Read and type check project
+    let inputs: Vec<project::Input> = files
+        .iter()
+        .map(|file| {
+            project::analyse_one(
+                file.to_path_buf(),
+                project::ModuleOrigin::Src,
+                file.parent().unwrap().to_path_buf().canonicalize().unwrap(),
+            )
+        })
+        .collect::<Result<Vec<project::Input>, Error>>()?;
+
+    let analysed = project::analysed(inputs)?;
+
+    // Generate Erlang code
+    let output_files = erl::generate_erlang(output_dir.clone(), analysed.as_slice());
+
+    // Reset output directory
+    fs::delete_dir(&output_dir)?;
 
     // Print warnings
     warning::print_all(analysed.as_slice());

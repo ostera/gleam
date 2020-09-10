@@ -6,7 +6,7 @@ use crate::{
     error::GleamExpect,
     fs::OutputFile,
     pretty::*,
-    project::{self, Analysed},
+    project::Analysed,
     typ::{
         ModuleValueConstructor, PatternConstructor, Type, ValueConstructor, ValueConstructorVariant,
     },
@@ -15,26 +15,23 @@ use heck::{CamelCase, SnakeCase};
 use itertools::Itertools;
 use std::char;
 use std::default::Default;
+use std::path;
 use std::sync::Arc;
 
 const INDENT: isize = 4;
 
-pub fn generate_erlang(analysed: &[Analysed]) -> Vec<OutputFile> {
+pub fn generate_erlang(output_dir: path::PathBuf, analysed: &[Analysed]) -> Vec<OutputFile> {
     let mut files = Vec::with_capacity(analysed.len() * 2);
 
     for Analysed {
         name,
-        origin,
-        source_base_path,
+        origin: _,
+        source_base_path: _,
         ast,
         ..
     } in analysed
     {
-        let gen_dir = source_base_path
-            .parent()
-            .unwrap()
-            .join(project::OUTPUT_DIR_NAME)
-            .join(origin.dir_name());
+        let gen_dir = output_dir.clone();
         let erl_module_name = name.join("@");
 
         for (name, text) in crate::erl::records(&ast).into_iter() {
