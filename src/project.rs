@@ -84,6 +84,7 @@ pub fn read_and_analyse(root: impl AsRef<Path>) -> Result<(PackageConfig, Vec<An
             p.file_name().and_then(|os_string| os_string.to_str()) != Some(&project_config.name)
         })
     {
+        collect_source(project_dir.clone(), ModuleOrigin::Dependency, &mut srcs)?;
         collect_source(project_dir.join("src"), ModuleOrigin::Dependency, &mut srcs)?;
     }
 
